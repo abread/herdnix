@@ -4,11 +4,11 @@
   config,
   ...
 }: let
-  cfg = config.modules.simple-deployer;
+  cfg = config.modules.herdnix;
 in {
   imports = [];
 
-  options.modules.simple-deployer = {
+  options.modules.herdnix = {
     enable = lib.mkOption {
       # we use mkOption instead of mkEnableOption to use true as the default
       type = lib.types.bool;
@@ -63,7 +63,7 @@ in {
   config = let
     # sudo has terrible argument handling logic so we resort to building a simple script for reboots
     # We only allow the deploy user to reboot when the latest configuration does not match the current configuration.
-    rebootHelperName = "__simple-deployer-reboot-helper";
+    rebootHelperName = "__herdnix-reboot-helper";
 
     # Allow deploy user to nixos-rebuild without a password
     # This allows the admin to, without password:
