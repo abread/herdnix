@@ -33,7 +33,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 
 	# Grab list of hosts, selecting only those with herdnix enabled.
 	host_metadata="${tmpdir}/metadata.json"
-	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { outPath = v.config.system.build.toplevel.outPath; }) f' |
+	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { rebootHelperPackage = null; }) f' |
 		jq -c ". | map_values(select(.enable)) ${tag_filter}" \
 			>"$host_metadata"
 
@@ -52,9 +52,9 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	declare -A build_configs
 	while IFS="=" read -r hostname outPath; do
 		build_configs[$hostname]="$outPath"
-	done < <(jq -r 'to_entries | sort_by(.key) | map("\( .key )=\( .value.outPath )") | .[]' "$host_metadata")
+	done < <(jq -r 'to_entries | sort_by(.key) | map("\( .key )=\( .key )") | .[]' "$host_metadata")
 	for hostname in "${!build_configs[@]}"; do
-		outPath="${build_configs[$hostname]}"
+		outPath="$(nix derivation show "${flakedir}#nixosConfigurations.${hostname}.config.system.build.toplevel" | jq -r 'to_entries | .[].value.outputs.out.path')"
 
 		if [[ -d $outPath ]]; then
 			# Filter out already-built configurations.
