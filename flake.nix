@@ -31,7 +31,7 @@
     ];
 
     flake.nixosModules.default = moduleWithSystem (perSystem @ {self'}: {...}: {
-      imports = [./module];
+      imports = [./module.nix];
       modules.herdnix.rebootHelperPackage = perSystem.self'.packages.herdnixRebootHelper;
     });
 
