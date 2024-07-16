@@ -2,6 +2,16 @@
 set -o errexit
 set -o errtrace
 
+red() {
+	tput setaf 1 bold
+}
+yellow() {
+	tput setaf 3 bold
+}
+reset() {
+	tput sgr0
+}
+
 if [[ $# -eq 0 ]]; then
 	# Switch to temporary directory
 	flakedir="$(pwd)"
@@ -59,12 +69,13 @@ if [[ $# -eq 0 ]]; then
 	done
 
 	tmux -S"$tmux_sock_path" attach
+	echo "All done."
 	exit 0
 fi
 
 pause_on_crash() {
 	echo
-	echo "Looks like we crashed on line $(caller)"
+	echo "$(red)Looks like we crashed on line $(caller)$(reset)"
 	read -r -p "Press enter to really exit."
 	exit 1
 }
@@ -76,10 +87,10 @@ target="$2"
 flakedir="$(echo -n -E "$4" | sed 's # \\# g')"
 buildResultPath="$5"
 
-reboot_cmd=(echo "I don't know how to reboot this host")
+reboot_cmd=(echo "$(red)I don't know how to reboot this host$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
 	targetCmdWrapper=(sh -c)
-	reboot_cmd=(echo "I refuse to reboot the current host.")
+	reboot_cmd=(echo "$(red)I refuse to reboot the current host.$(reset)")
 	targetHost=()
 else
 	sshopts=(-o ControlPath="$(pwd)/${hostname}.ssh" -o ControlMaster=auto -o ControlPersist=120)
@@ -104,14 +115,14 @@ ask_reboot() {
 		echo "Asking ${hostname} to reboot..."
 		"${reboot_cmd[@]}" || {
 			echo
-			echo "Looks like we failed to reboot. If it's the first run this is normal: we need to install the reboot helper first."
+			echo "$(yellow)Looks like we failed to reboot. If it's the first run this is normal: we need to install the reboot helper first.$(reset)"
 			echo
 			read -r -p "Press enter to continue..."
 			return 2
 		}
 	else
 		clear
-		echo "Not rebooting ${hostname}"
+		echo "$(yellow)Not rebooting ${hostname}$(reset)"
 		return 1
 	fi
 }
@@ -153,9 +164,15 @@ buildMenuOptions() {
 		)
 	fi
 	if [[ $currentHash != "$activeHash" ]]; then
-		menuOptions+=(
-			"switch" "Activate new configuration, ensuring it is at the top of the boot order"
-		)
+		if [[ $currentHash == "$nextBootHash" ]]; then
+			menuOptions+=(
+				"switch" "Activate new configuration (already at the top of the boot order)"
+			)
+		else
+			menuOptions+=(
+				"switch" "Activate new configuration, addint it to the top of the boot order"
+			)
+		fi
 	fi
 	if [[ $currentHash != "$activeHash" ]] && [[ $currentHash != "$nextBootHash" ]]; then
 		menuOptions+=(
@@ -170,7 +187,7 @@ buildMenuOptions
 if [[ ${#menuOptions[@]} == 0 ]]; then
 	if [[ $currentHash != "$bootedHash" ]]; then
 		if [[ $hostname == "$(hostname)" ]]; then
-			echo "$(tput setaf 1 bold)${hostname} has the latest config active but it booted the older one. Maybe you want to reboot it$(tput sgr0)"
+			echo "$(red)${hostname} has the latest config active but it booted the older one. Maybe you want to reboot it$(reset)"
 			echo "That said, I refuse to reboot the local host for you"
 		else
 			ask_reboot "${hostname} has the latest config active, but it booted an older one. Do you want to reboot it?" || true
@@ -190,8 +207,8 @@ fi
 }
 
 echo
-[[ $currentHash == "$activeHash" ]] && echo "$(tput setaf 1 bold)This configuration is already active .$(tput sgr0)"
-[[ $currentHash == "$nextBootHash" ]] && echo "$(tput setaf 1 bold)This configuration is already in the target host and will be activated on next boot.$(tput sgr0)"
+[[ $currentHash == "$activeHash" ]] && echo "$(red)This configuration is already active .$(reset)"
+[[ $currentHash == "$nextBootHash" ]] && echo "$(red)This configuration is already in the target host and will be activated on next boot.$(reset)"
 echo
 read -r -p "Press enter to continue..."
 
@@ -210,7 +227,7 @@ while true; do
 		echo
 		if rebuild boot; then
 			if [[ "$(hostname)" == "$hostname" ]]; then
-				echo "Don't forget to reboot! I refuse to reboot the local host for you."
+				echo "$(red)Don't forget to reboot! I refuse to reboot the local host for you.$(reset)"
 			elif (
 				echo
 				read -r -p "Press enter to continue..."
@@ -227,7 +244,7 @@ while true; do
 		;;
 	reboot)
 		if [[ "$(hostname)" == "$hostname" ]]; then
-			echo "I refuse to reboot the local host! THIS SHOULD NOT EVEN BE AN OPTION!"
+			echo "$(red)I refuse to reboot the local host! THIS SHOULD NOT EVEN BE AN OPTION!$(reset)"
 		elif ask_reboot "Are you sure you want to reboot ${hostname}?"; then
 			echo
 			read -r -p "Done. Press enter to exit..."
@@ -235,7 +252,8 @@ while true; do
 		fi
 		;;
 	switch)
-		echo "${hostname}: Switching to new configuration"
+		echo "${hostname}: Switching to new configuration, ensuring it is added to the top of the boot order"
+		echo
 		if rebuild switch; then
 			echo
 			read -r -p "Done. Press enter to exit..."
@@ -248,6 +266,7 @@ while true; do
 		;;
 	test)
 		echo "${hostname}: Switching to new configuration without adding it to boot order"
+		echo
 		rebuild test || true
 
 		# refresh possibly changed hashes
