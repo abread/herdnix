@@ -25,8 +25,8 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	trap "rm -rf '${tmpdir}'" EXIT
 
 	# Build a jq filter that selects hosts matching the provided tags
-	if [[ $# > 0 ]]; then
-		tag_array="[\"$(echo "$@" | sed 's/ /","/')\"]"
+	if [[ $# -gt 0 ]]; then
+		tag_array="[\"${*// /\",\"}\"]"
 		tag_filter="| map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))"
 	fi
 
@@ -58,7 +58,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 		if [[ -d $outPath ]]; then
 			# Filter out already-built configurations.
 			echo "$(yellow)Skipping ${hostname}: already built.$(reset)"
-			unset outPath[$hostname]
+			unset 'outPath["$hostname"]'
 		else
 			# Prepare nix build args for kept configurations.
 			build_configs[$hostname]="$(echo -n -E "$flakedir" | sed 's \\ \\\\ g' | sed 's " \\" g' | sed 's # \\# g')#nixosConfigurations.${hostname}.config.system.build.toplevel"
@@ -66,7 +66,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	done
 
 	# Build missing configurations for selected hosts
-	if [[ ${#build_configs[@]} > 0 ]]; then
+	if [[ ${#build_configs[@]} -gt 0 ]]; then
 		echo
 		echo "Build output:"
 		echo
