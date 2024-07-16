@@ -71,6 +71,7 @@
             deadnix.enable = true;
 
             # Shell
+            shellcheck.enable = true;
             shfmt.enable = true;
 
             # Git
