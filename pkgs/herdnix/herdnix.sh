@@ -26,7 +26,7 @@ if [[ $# -eq 0 ]]; then
 
 	# Grab list of hosts, selecting only those with herdnix enabled.
 	host_metadata="${tmpdir}/metadata.json"
-	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix) f' | jq -c '. | map_values(select(.enable))' >"$host_metadata"
+	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { outPath = v.config.system.build.toplevel.outPath; }) f' | jq -c '. | map_values(select(.enable))' >"$host_metadata"
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")
@@ -39,23 +39,41 @@ if [[ $# -eq 0 ]]; then
 	jq -c "with_entries(select(.key | in(${chosen_hosts_filter})))" "$host_metadata" >"${host_metadata}.new"
 	mv "${host_metadata}.new" "$host_metadata"
 
-	readarray -t build_configs < <(jq -r "keys | sort | map(\"$(echo -n -E "$flakedir" | sed 's \\ \\\\ g' | sed 's " \\" g' | sed 's # \\# g')#nixosConfigurations.\" + . + \".config.system.build.toplevel\") | .[]" "$host_metadata")
-	echo "Build output:"
-	ionice nice nom build "${build_configs[@]}"
-	mv result result-0 # for uniformity
+	# Prepare list of configurations to be built
+	declare -A build_configs
+	while IFS="=" read -r hostname outPath; do
+		build_configs[$hostname]="$outPath"
+	done < <(jq -r 'to_entries | sort_by(.key) | map("( .key )=( .value.outPath )") | .[]' "$host_metadata")
+	for hostname in "${!build_configs[@]}"; do
+		outPath="${build_configs[$hostname]}"
 
-	echo
-	read -r -p "Press enter to continue."
+		if [[ -d $outPath ]]; then
+			# Filter out already-built configurations.
+			echo "$(yellow)Skipping ${hostname}: already built.$(reset)"
+			unset outPath[$hostname]
+		else
+			# Prepare nix build args for kept configurations.
+			build_configs[$hostname]="$(echo -n -E "$flakedir" | sed 's \\ \\\\ g' | sed 's " \\" g' | sed 's # \\# g')#nixosConfigurations.${hostname}.config.system.build.toplevel"
+		fi
+	done
+
+	# Build missing configurations for selected hosts
+	if [[ ${#build_configs[@]} > 0 ]]; then
+		echo
+		echo "Build output:"
+		echo
+		ionice nice nom build "${build_configs[@]}"
+		echo
+		read -r -p "Press enter to continue."
+	fi
 
 	# Open tmux with individual rebuild options for each host
 	unset tmux_sock_path
-	i=0
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
 		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
 		useRemoteSudo="$(echo "$host_data" | jq -r '.value.useRemoteSudo')"
-		buildResultPath="$(pwd)/result-${i}"
-		i=$((i + 1))
+		buildResultPath="$(echo "$host_data" | jq -r '.value.outPath')"
 
 		cmd=("$ownscript" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
 		if [[ -n $tmux_sock_path ]]; then
