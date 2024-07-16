@@ -32,7 +32,7 @@
 
     flake.nixosModules.default = moduleWithSystem (perSystem @ {self'}: {...}: {
       imports = [./module];
-      modules.herdnix.rebootHelperPackage = perSystem.self'.packages.rebootHelper;
+      modules.herdnix.rebootHelperPackage = perSystem.self'.packages.herdnixRebootHelper;
     });
 
     systems = inputs.nixpkgs.lib.systems.flakeExposed;
@@ -46,7 +46,7 @@
         mkRebootHelperPkg = import ./pkgs/reboot-helper;
         mkNixiesPkg = import ./pkgs/herdnix;
       in {
-        rebootHelper = mkRebootHelperPkg pkgs;
+        herdnixRebootHelper = mkRebootHelperPkg pkgs;
         herdnix = mkNixiesPkg pkgs;
         default = self'.packages.herdnix;
       };
