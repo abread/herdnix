@@ -25,6 +25,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	trap "rm -rf '${tmpdir}'" EXIT
 
 	# Build a jq filter that selects hosts matching the provided tags
+	tag_filter=""
 	if [[ $# -gt 0 ]]; then
 		tag_array="[\"${*// /\",\"}\"]"
 		tag_filter="| map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))"
