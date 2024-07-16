@@ -12,7 +12,7 @@ reset() {
 	tput sgr0
 }
 
-if [[ $# -eq 0 ]]; then
+if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	# Switch to temporary directory
 	flakedir="$(pwd)"
 	ownscript="$(realpath "$0")"
@@ -75,7 +75,7 @@ if [[ $# -eq 0 ]]; then
 		useRemoteSudo="$(echo "$host_data" | jq -r '.value.useRemoteSudo')"
 		buildResultPath="$(echo "$host_data" | jq -r '.value.outPath')"
 
-		cmd=("$ownscript" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
+		cmd=("$ownscript" "--single-host-do-not-call" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
 		if [[ -n $tmux_sock_path ]]; then
 			tmux -S"$tmux_sock_path" new-window "${cmd[@]}"
 		else
@@ -91,6 +91,13 @@ if [[ $# -eq 0 ]]; then
 	exit 0
 fi
 
+if [[ $# != 6 ]]; then
+	echo "$(red)Invalid arguments in internal invocation. This is a bug.$(reset)"
+	echo
+	read -r -p "Press enter to exit."
+	exit 1
+fi
+
 pause_on_crash() {
 	echo
 	echo "$(red)Looks like we crashed on line $(caller)$(reset)"
@@ -99,11 +106,11 @@ pause_on_crash() {
 }
 trap pause_on_crash ERR
 
-hostname="$1"
-target="$2"
-[[ $3 == "true" ]] && useRemoteSudo=(--use-remote-sudo) || useRemoteSudo=()
-flakedir="$(echo -n -E "$4" | sed 's # \\# g')"
-buildResultPath="$5"
+hostname="$2"
+target="$3"
+[[ $4 == "true" ]] && useRemoteSudo=(--use-remote-sudo) || useRemoteSudo=()
+flakedir="$(echo -n -E "$5" | sed 's # \\# g')"
+buildResultPath="$6"
 
 reboot_cmd=(echo "$(red)I don't know how to reboot this host$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
@@ -112,7 +119,7 @@ if [[ "$(hostname)" == "$hostname" ]]; then
 	targetHost=()
 else
 	sshopts=(-o ControlPath="$(pwd)/${hostname}.ssh" -o ControlMaster=auto -o ControlPersist=120)
-	export NIX_SSHOPTS="${sshopts[*]}"
+	export NIX_SSHOPTS="${sshopts[*]}" # share SSH connection with nixos-rebuild invocations
 	targetCmdWrapper=(ssh "${sshopts[@]}" "$target")
 
 	[[ $3 == "true" ]] && remoteSudo=(sudo) || remoteSudo=()
