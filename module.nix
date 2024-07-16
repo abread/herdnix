@@ -54,6 +54,13 @@ in {
       example = "user@machine.com";
     };
 
+    tags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      description = "Tags associated with this host";
+      default = [];
+      example = lib.literalExpression ''["webserver", "primary"]'';
+    };
+
     rebootHelperPackage = lib.mkPackageOption pkgs "reboot helper" {
       default = "herdnixRebootHelper";
       description = "The reboot helper to use. Must expose itself as __herdnix-reboot-helper.";

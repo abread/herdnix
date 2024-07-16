@@ -24,9 +24,17 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	# shellcheck disable=SC2064
 	trap "rm -rf '${tmpdir}'" EXIT
 
+	# Build a jq filter that selects hosts matching the provided tags
+	if [[ $# > 0 ]]; then
+		tag_array="[\"$(echo "$@" | sed 's/ /","/')\"]"
+		tag_filter="| map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))"
+	fi
+
 	# Grab list of hosts, selecting only those with herdnix enabled.
 	host_metadata="${tmpdir}/metadata.json"
-	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { outPath = v.config.system.build.toplevel.outPath; }) f' | jq -c '. | map_values(select(.enable))' >"$host_metadata"
+	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { outPath = v.config.system.build.toplevel.outPath; }) f' |
+		jq -c ". | map_values(select(.enable)) ${tag_filter}" \
+			>"$host_metadata"
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")
@@ -43,7 +51,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	declare -A build_configs
 	while IFS="=" read -r hostname outPath; do
 		build_configs[$hostname]="$outPath"
-	done < <(jq -r 'to_entries | sort_by(.key) | map("( .key )=( .value.outPath )") | .[]' "$host_metadata")
+	done < <(jq -r 'to_entries | sort_by(.key) | map("\( .key )=\( .value.outPath )") | .[]' "$host_metadata")
 	for hostname in "${!build_configs[@]}"; do
 		outPath="${build_configs[$hostname]}"
 
