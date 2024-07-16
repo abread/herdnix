@@ -32,7 +32,7 @@
 
     flake.nixosModules.default = moduleWithSystem (perSystem @ {self'}: {...}: {
       imports = [./module];
-      modules.nixies.rebootHelperPackage = perSystem.self'.packages.rebootHelper;
+      modules.herdnix.rebootHelperPackage = perSystem.self'.packages.rebootHelper;
     });
 
     systems = inputs.nixpkgs.lib.systems.flakeExposed;
@@ -44,19 +44,19 @@
     }: {
       packages = let
         mkRebootHelperPkg = import ./pkgs/reboot-helper;
-        mkNixiesPkg = import ./pkgs/nixies;
+        mkNixiesPkg = import ./pkgs/herdnix;
       in {
         rebootHelper = mkRebootHelperPkg pkgs;
-        nixies = mkNixiesPkg pkgs;
-        default = self'.packages.nixies;
+        herdnix = mkNixiesPkg pkgs;
+        default = self'.packages.herdnix;
       };
 
       apps = {
-        nixies = {
+        herdnix = {
           type = "app";
-          program = "${self'.packages.nixies}/bin/nixies";
+          program = "${self'.packages.herdnix}/bin/herdnix";
         };
-        default = self'.apps.nixies;
+        default = self'.apps.herdnix;
       };
 
       formatter = pkgs.alejandra;

@@ -6,7 +6,7 @@ if [[ $# -eq 0 ]]; then
 	# Switch to temporary directory
 	flakedir="$(pwd)"
 	ownscript="$(realpath "$0")"
-	tmpdir="$(mktemp -d -p "${TMPDIR:-/tmp}" nixies.XXXXXXXXXX)"
+	tmpdir="$(mktemp -d -p "${TMPDIR:-/tmp}" herdnix.XXXXXXXXXX)"
 	tmpdir="$(realpath "$tmpdir")"
 	cd "$tmpdir"
 
@@ -14,9 +14,9 @@ if [[ $# -eq 0 ]]; then
 	# shellcheck disable=SC2064
 	trap "rm -rf '${tmpdir}'" EXIT
 
-	# Grab list of hosts, selecting only those with nixies enabled.
+	# Grab list of hosts, selecting only those with herdnix enabled.
 	host_metadata="${tmpdir}/metadata.json"
-	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.nixies) f' | jq -c '. | map_values(select(.enable))' >"$host_metadata"
+	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix) f' | jq -c '. | map_values(select(.enable))' >"$host_metadata"
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")
@@ -87,7 +87,7 @@ else
 	targetCmdWrapper=(ssh "${sshopts[@]}" "$target")
 
 	[[ $3 == "true" ]] && remoteSudo=(sudo) || remoteSudo=()
-	reboot_cmd=("${targetCmdWrapper[@]}" "${remoteSudo[@]}" "/run/current-system/sw/bin/__nixies-reboot-helper" "--yes")
+	reboot_cmd=("${targetCmdWrapper[@]}" "${remoteSudo[@]}" "/run/current-system/sw/bin/__herdnix-reboot-helper" "--yes")
 
 	targetHost=(--target-host "$target")
 fi

@@ -55,8 +55,8 @@ in {
     };
 
     rebootHelperPackage = lib.mkPackageOption pkgs "reboot helper" {
-      default = "nixies-reboot-helper";
-      description = "The reboot helper to use. Must expose itself as __nixies-reboot-helper.";
+      default = "herdnix-reboot-helper";
+      description = "The reboot helper to use. Must expose itself as __herdnix-reboot-helper.";
     };
   };
 

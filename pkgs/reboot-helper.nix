@@ -1,7 +1,7 @@
 pkgs: let
-  inhibitorPath = "/dev/shm/nixies-dont-reboot";
+  inhibitorPath = "/dev/shm/herdnix-dont-reboot";
 in
-  pkgs.writeShellScriptBin "__nixies-reboot-helper" ''
+  pkgs.writeShellScriptBin "__herdnix-reboot-helper" ''
     # Safeguard: prevent accidental invocation from autocompleted command
     if [ "$#" != "1" ] || [ "$1" != "--yes" ]; then
       echo "Not rebooting: must be invoked with a single argument (--yes)."
