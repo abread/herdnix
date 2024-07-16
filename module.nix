@@ -53,37 +53,17 @@ in {
       defaultText = lib.literalExpression ''( if cfg.deploymentUser != null then "${cfg.deploymentUser}@" else "" ) + config.networking.fqdnOrHostName'';
       example = "user@machine.com";
     };
+
+    rebootHelperPackage = lib.mkPackageOption pkgs "reboot helper" {
+      default = "nixies-reboot-helper";
+      description = "The reboot helper to use. Must expose itself as __nixies-reboot-helper.";
+    };
   };
 
   config = let
     # sudo has terrible argument handling logic so we resort to building a simple script for reboots
     # We only allow the deploy user to reboot when the latest configuration does not match the current configuration.
     rebootHelperName = "__simple-deployer-reboot-helper";
-    rebootHelperDrv = pkgs.writeShellScriptBin rebootHelperName ''
-      # Safeguard: prevent accidental invocation from autocompleted command
-      if [ "$#" != "1" ] || [ "$1" != "--yes" ]; then
-        echo "Not rebooting: must be invoked with a single argument (--yes)."
-        exit 1
-      fi
-
-      # Safeguard: allow an administrator to prevent consecutive reboots (DoS attack)
-      if [ $(cat /proc/uptime | cut -d' ' -f1 | cut -d. -f1) -le 120 ]; then
-        echo "Not rebooting: uptime is under 120s"
-        exit 1
-      fi
-      if [ -f /dev/shm/__simple-deployer-dont-reboot ]; then
-        echo "Not rebooting: /dev/shm/__simple-deployer-dont-reboot exists"
-        exit 1
-      fi
-
-      # Safeguard: only allow reboots if the configuration actually changed
-      if [ "z$(readlink -f /nix/var/nix/profiles/system)" = "z$(readlink -f /run/booted-system)" ]; then
-         echo Not rebooting, booted configuration matches latest
-        exit 1
-      fi
-
-      exec ${pkgs.systemd}/bin/systemctl reboot
-    '';
 
     # Allow deploy user to nixos-rebuild without a password
     # This allows the admin to, without password:
@@ -115,6 +95,6 @@ in {
     security.sudo.extraRules = lib.mkIf (applySudoRule && config.security.sudo.enable) [sudoRule];
     security.sudo-rs.extraRules = lib.mkIf (applySudoRule && config.security.sudo-rs.enable) [sudoRule];
 
-    environment.systemPackages = lib.mkIf (cfg.deploymentUser != null && cfg.deploymentUser != "root") [rebootHelperDrv];
+    environment.systemPackages = lib.mkIf (cfg.deploymentUser != null && cfg.deploymentUser != "root") [cfg.rebootHelperPackage];
   };
 }
