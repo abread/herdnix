@@ -43,7 +43,7 @@
       ...
     }: {
       packages = let
-        mkRebootHelperPkg = import ./pkgs/reboot-helper;
+        mkRebootHelperPkg = import ./pkgs/reboot-helper.nix;
         mkNixiesPkg = import ./pkgs/herdnix;
       in {
         herdnixRebootHelper = mkRebootHelperPkg pkgs;
