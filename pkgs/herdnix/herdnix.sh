@@ -78,7 +78,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	fi
 
 	# Open tmux with individual rebuild options for each host
-	[[ -n $tmux_sock_path ]] && unset tmux_sock_path
+	[ -z ${tmux_sock_path+x} ] && unset tmux_sock_path
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
 		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
