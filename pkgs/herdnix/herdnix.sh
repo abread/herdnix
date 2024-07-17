@@ -86,7 +86,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 		buildResultPath="$(nix derivation show "${flakedir}#nixosConfigurations.${hostname}.config.system.build.toplevel" | jq -r 'to_entries | .[].value.outputs.out.path')"
 
 		cmd=("$ownscript" "--single-host-do-not-call" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
-		if [[ -n $tmux_sock_path ]]; then
+		if [ -z ${tmux_sock_path+x} ]; then
 			tmux -S"$tmux_sock_path" new-window "${cmd[@]}"
 		else
 			tmux_sock_path="${tmpdir}/tmux"
