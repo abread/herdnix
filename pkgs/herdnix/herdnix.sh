@@ -39,6 +39,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")
+	[[ ${#checklist_entries[@]} == 0 ]] && echo "No hosts selected by filter, nothing to do." && exit 0
 	chosen_hosts="$(dialog --stdout --checklist 'Select hosts to (re-)build:' 0 0 0 "${checklist_entries[@]}")"
 	clear
 	[[ -z $chosen_hosts ]] && echo "No hosts chosen, nothing to do." && exit 0
