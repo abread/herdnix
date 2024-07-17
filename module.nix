@@ -102,7 +102,7 @@ in {
           "/run/current-system/sw/bin/env ^-i LOCALE_ARCHIVE=([^ ]+) NIXOS_INSTALL_BOOTLOADER=(1?) /nix/store/([a-z0-9]+)-nixos-system-${config.networking.hostName}-([0-9.a-z]+)/bin/switch-to-configuration (switch|boot|test|dry-activate)$"
 
           # Allow rebooting but only when configuration changed
-          "/run/current-system/sw/bin/${rebootHelperName} --yes"
+          "/etc/profiles/per-user/${cfg.deploymentUser}/bin/${rebootHelperName} --yes"
         ];
     };
     applySudoRule = cfg.useRemoteSudo && cfg.deploymentUser != "root";
