@@ -17,32 +17,31 @@ in {
       example = false;
     };
 
-    defaultSelect = lib.mkOption {
+    deploymentUser = lib.mkOption {
+      type = lib.types.str;
+      description = "Which user should be used to deploy the configuration. Keep null to disable. This user will be granted enough permissions to use sudo without password for deployment tasks (if useRemoteSudo is set to true, which is the default for non-root deployment users).";
+      default = "herdnix";
+      example = "someusername";
+    };
+
+    createDeploymentUser = lib.mkOption {
       type = lib.types.bool;
-      description = "Whether to select this host for deployment by default";
+      description = "Whether to create a least-privilege deployment user. This user is created as a password-less, home-less, nogroup user by default, and we expect you to enable authentication separately (e.g. through SSH keys).";
       default = true;
       example = false;
     };
 
-    deploymentUser = lib.mkOption {
-      type = lib.types.str;
-      description = "Which user should be used to deploy the configuration. Keep null to disable. This user will be granted enough permissions to use sudo without password for deployment tasks.";
-      default = null;
-      example = "someusername";
-    };
-
-    useRemoteSudo = lib.mkOption {
-      type = lib.types.bool;
-      description = "Whether to use sudo to deploy this host with --use-remote-sudo";
-      # enable when root does not have a configured SSH key
-      default = cfg.deploymentUser != null && cfg.deploymentUser != "root";
-      defaultText = lib.literalExpression ''cfg.deploymentUser != null && cfg.deploymentUser != "root"'';
-      example = true;
+    tags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      description = "Tags associated with this host";
+      default = [config.networking.hostName];
+      defaultText = lib.literalExpression ''[config.networking.hostName]'';
+      example = lib.literalExpression ''["webserver", "primary"]'';
     };
 
     targetHost = lib.mkOption {
       type = lib.types.str;
-      description = "What to pass as --target-host to nixos-rebuild";
+      description = "What to pass as --target-host to nixos-rebuild. Change if the default is not enough to reach your system.";
       default =
         (
           if cfg.deploymentUser != null
@@ -54,16 +53,25 @@ in {
       example = "user@machine.com";
     };
 
-    tags = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      description = "Tags associated with this host";
-      default = [];
-      example = lib.literalExpression ''["webserver", "primary"]'';
+    defaultSelect = lib.mkOption {
+      type = lib.types.bool;
+      description = "Whether to select this host for deployment by default";
+      default = true;
+      example = false;
+    };
+
+    useRemoteSudo = lib.mkOption {
+      type = lib.types.bool;
+      description = "Whether to use sudo to deploy this host with --use-remote-sudo. You likely do not want to change this.";
+      # enable when root does not have a configured SSH key
+      default = cfg.deploymentUser != "root";
+      defaultText = lib.literalExpression ''cfg.deploymentUser != "root"'';
+      example = false;
     };
 
     rebootHelperPackage = lib.mkPackageOption pkgs "reboot helper" {
       default = "herdnixRebootHelper";
-      extraDescription = "The reboot helper must expose itself in the PATH as \"__herdnix-reboot-helper\".";
+      extraDescription = "The reboot helper must expose itself in the PATH as \"__herdnix-reboot-helper\". You likely do not want to change this.";
     };
   };
 
@@ -97,11 +105,23 @@ in {
           "/run/current-system/sw/bin/${rebootHelperName} --yes"
         ];
     };
-    applySudoRule = cfg.useRemoteSudo && cfg.deploymentUser != null && cfg.deploymentUser != "root";
-  in {
-    security.sudo.extraRules = lib.mkIf (applySudoRule && config.security.sudo.enable) [sudoRule];
-    security.sudo-rs.extraRules = lib.mkIf (applySudoRule && config.security.sudo-rs.enable) [sudoRule];
+    applySudoRule = cfg.useRemoteSudo && cfg.deploymentUser != "root";
+  in
+    lib.mkIf cfg.enable {
+      users.users."${cfg.deploymentUser}" = lib.mkIf cfg.createDeploymentUser {
+        isNormalUser = true;
+        shell = pkgs.bashInteractive;
+        home = "/var/empty";
+        createHome = false;
+        group = "nogroup";
+      };
+      users.users."${cfg.deploymentUser}".packages = [
+        cfg.rebootHelperPackage
+      ];
 
-    environment.systemPackages = lib.mkIf (cfg.deploymentUser != null && cfg.deploymentUser != "root") [cfg.rebootHelperPackage];
-  };
+      security = {
+        sudo.extraRules = lib.mkIf (applySudoRule && config.security.sudo.enable) [sudoRule];
+        sudo-rs.extraRules = lib.mkIf (applySudoRule && config.security.sudo-rs.enable) [sudoRule];
+      };
+    };
 }
