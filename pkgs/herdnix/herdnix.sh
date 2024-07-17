@@ -7,11 +7,26 @@ set -o pipefail
 red() {
 	tput setaf 1 bold
 }
+green() {
+	tput setaf 2 bold
+}
 yellow() {
 	tput setaf 3 bold
 }
 reset() {
 	tput sgr0
+}
+dialog_red() {
+	echo -n -E '\Zb\Z1'
+}
+dialog_green() {
+	echo -n -E '\Zb\Z2'
+}
+dialog_yellow() {
+	echo -n -E '\Zb\Z3'
+}
+dialog_reset() {
+	echo -n -E '\Zn'
 }
 
 if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
@@ -41,7 +56,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")
-	[[ ${#checklist_entries[@]} == 0 ]] && echo "No hosts selected by filter, nothing to do." && exit 0
+	[[ ${#checklist_entries[@]} == 0 ]] && echo "$(yellow)No hosts selected by filter, nothing to do.$(reset)" && exit 0
 	chosen_hosts="$(dialog --stdout --checklist 'Select hosts to (re-)build:' 0 0 0 "${checklist_entries[@]}")"
 	clear
 	[[ -z $chosen_hosts ]] && echo "No hosts chosen, nothing to do." && exit 0
@@ -61,7 +76,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 
 		if [[ -d $outPath ]]; then
 			# Filter out already-built configurations.
-			echo "$(yellow)Skipping ${hostname}: already built.$(reset)"
+			echo "$(yellow)Skipping $(red)${hostname}$(yellow): already built.$(reset)"
 			unset 'build_configs["$hostname"]'
 		else
 			# Prepare nix build args for kept configurations.
@@ -80,7 +95,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	fi
 
 	# Open tmux with individual rebuild options for each host
-	[ -z ${tmux_sock_path+x} ] && tmux_sock_path=""
+	tmux_sock_path=""
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
 		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
@@ -124,7 +139,7 @@ target="$3"
 flakedir="$(echo -n -E "$5" | sed 's # \\# g')"
 buildResultPath="$6"
 
-reboot_cmd=(echo "$(red)I don't know how to reboot this host$(reset)")
+reboot_cmd=(echo "$(red)I don't know how to reboot this host. This is a bug.$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
 	targetCmdWrapper=(sh -c)
 	reboot_cmd=(echo "$(red)I refuse to reboot the current host.$(reset)")
@@ -144,24 +159,6 @@ unset target
 rebuild() {
 	op="$1"
 	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHost[@]}" "${useRemoteSudo[@]}"
-}
-ask_reboot() {
-	msg="$1"
-	if dialog --yesno "$msg" 0 0; then
-		clear
-		echo "Asking ${hostname} to reboot..."
-		"${reboot_cmd[@]}" || {
-			echo
-			echo "$(yellow)Looks like we failed to reboot. If it's the first run this is normal: we need to install the reboot helper first.$(reset)"
-			echo
-			read -r -p "Press enter to continue..."
-			return 2
-		}
-	else
-		clear
-		echo "$(yellow)Not rebooting ${hostname}$(reset)"
-		return 1
-	fi
 }
 
 updateActiveHash() {
@@ -195,10 +192,16 @@ buildMenuOptions() {
 			"boot" "Add new configuration to top of boot order"
 		)
 	fi
-	if [[ $currentHash != "$activeHash" ]] && [[ $currentHash == "$nextBootHash" ]]; then
-		menuOptions+=(
-			"reboot" "Reboot to new configuration"
-		)
+	if [[ $currentHash == "$nextBootHash" ]] && [[ $currentHash != "$bootedHash" ]]; then
+		if [[ $currentHash == "$activeHash" ]]; then
+			menuOptions+=(
+				"reboot" "Reboot with (already active) new configuration"
+			)
+		else
+			menuOptions+=(
+				"reboot" "Reboot to new configuration"
+			)
+		fi
 	fi
 	if [[ $currentHash != "$activeHash" ]]; then
 		if [[ $currentHash == "$nextBootHash" ]]; then
@@ -207,74 +210,53 @@ buildMenuOptions() {
 			)
 		else
 			menuOptions+=(
-				"switch" "Activate new configuration, addint it to the top of the boot order"
+				"switch" "Activate new configuration and add it to the top of the boot order"
 			)
 		fi
 	fi
 	if [[ $currentHash != "$activeHash" ]] && [[ $currentHash != "$nextBootHash" ]]; then
 		menuOptions+=(
-			"test" "Activate new configuration without adding it to the boot order"
+			"test" "Activate new configuration (without adding it to the boot order)"
 		)
 	fi
 }
 
 buildMenuOptions
 
-# exit early if there's nothing to do
-if [[ ${#menuOptions[@]} == 0 ]]; then
-	if [[ $currentHash != "$bootedHash" ]]; then
-		if [[ $hostname == "$(hostname)" ]]; then
-			echo "$(red)${hostname} has the latest config active but it booted the older one. Maybe you want to reboot it$(reset)"
-			echo "That said, I refuse to reboot the local host for you"
-		else
-			ask_reboot "${hostname} has the latest config active, but it booted an older one. Do you want to reboot it?" || true
-		fi
+# show result of dry activation (if there is a difference)
+if [[ $currentHash != "$activeHash" ]]; then
+	echo "This is the result of switching to the new configuration in $(yellow)${hostname}$(reset):"
+	rebuild dry-activate || pause_on_crash
 
-		echo
-		read -r -p "Press any key to exit..."
-	fi
-
-	exit 0
+	echo
+	read -r -p "Press enter to continue..."
 fi
 
-# show result of dry activation (if there is a difference)
-[[ $currentHash != "$activeHash" ]] && {
-	echo "This is the result of switching to the new configuration in ${hostname}:"
-	rebuild dry-activate || pause_on_crash
-}
+while [ ${#menuOptions[@]} -gt 0 ]; do
+	[[ $currentHash == "$activeHash" ]] && is_active="$(dialog_green)activated$(dialog_reset)" || is_active="$(dialog_red)NOT activated$(dialog_reset)"
+	[[ $currentHash == "$nextBootHash" ]] && is_nextboot="$(dialog_green)active on next boot$(dialog_reset)" || is_nextboot="$(dialog_red)NOT active on next boot$(dialog_reset)"
+	[[ $currentHash == "$activeHash" ]] && [[ $currentHash == "$nextBootHash" ]] && extra_warning="WARNING: System was booted with an older configuration." || extra_warning=""
+	read -r -d '' title <<-EOS || true
+		Deploying $(dialog_yellow)${hostname}$(dialog_reset)
+		New configuration status: ${is_active}, ${is_nextboot}
+		$(dialog_yellow)${extra_warning}$(dialog_reset)
 
-echo
-[[ $currentHash == "$activeHash" ]] && echo "$(red)This configuration is already active .$(reset)"
-[[ $currentHash == "$nextBootHash" ]] && echo "$(red)This configuration is already in the target host and will be activated on next boot.$(reset)"
-echo
-read -r -p "Press enter to continue..."
+		What should we do?
+	EOS
 
-while true; do
-	action="$(dialog --stdout --no-cancel --menu "Choose what to do with ${hostname}:" 0 0 0 "${menuOptions[@]}" "exit" "Do nothing, just exit")"
+	action="$(dialog --stdout --no-cancel --colors --cr-wrap --menu "${title}" 0 0 0 "${menuOptions[@]}" "exit" "Do nothing, just exit")"
 	clear
 
 	case "$action" in
 	inspect)
-		echo "This is the result of switching to the new configuration in ${hostname}:"
+		echo "This is the result of switching to the new configuration in $(yellow)${hostname}$(reset):"
 		echo
 		rebuild dry-activate || true
 		;;
 	boot)
-		echo "${hostname}: Adding new configuration to boot order"
+		echo "$(yellow)${hostname}$(reset): Adding new configuration to boot order"
 		echo
-		if rebuild boot; then
-			if [[ "$(hostname)" == "$hostname" ]]; then
-				echo "$(red)Don't forget to reboot! I refuse to reboot the local host for you.$(reset)"
-			elif (
-				echo
-				read -r -p "Press enter to continue..."
-				ask_reboot "Do you want to reboot ${hostname}?"
-			); then
-				echo
-				read -r -p "Done. Press enter to exit..."
-				exit 0
-			fi
-		fi
+		rebuild boot || true
 
 		# refresh possibly changed hashes
 		updateNextBootHash
@@ -282,20 +264,37 @@ while true; do
 	reboot)
 		if [[ "$(hostname)" == "$hostname" ]]; then
 			echo "$(red)I refuse to reboot the local host! THIS SHOULD NOT EVEN BE AN OPTION!$(reset)"
-		elif ask_reboot "Are you sure you want to reboot ${hostname}?"; then
-			echo
-			read -r -p "Done. Press enter to exit..."
-			exit 0
+		else
+			dialog_out=""
+			while [[ $dialog_out != "$hostname" && $dialog_out != "__CANCEL_${hostname}" ]]; do
+				clear
+				dialog_out="$(dialog --stdout --colors --cr-wrap --inputbox "Input $(dialog_yellow)${hostname}$(dialog_reset) below to confirm you want to reboot it.\nPress Cancel to cancel." 0 0 || echo "__CANCEL_${hostname}")"
+			done
+			clear
+
+			if [[ $dialog_out == "$hostname" ]]; then
+				echo "Asking $(yellow)${hostname}$(reset) to reboot..."
+				if "${reboot_cmd[@]}"; then
+					echo
+					read -r -p "Press enter to exit."
+				else
+					echo
+					echo "$(yellow)Looks like we failed to reboot. If it's the first run this is normal: we need to install the reboot helper first.$(reset)"
+					echo "You may want to activate the new configuration."
+					echo
+					read -r -p "Press enter to continue..."
+				fi
+			fi
+
+			# Nothing changed, so there is no need for rebuilding menu options
+			# and we don't want to prompt the user to press enter to continue
+			continue
 		fi
 		;;
 	switch)
 		echo "${hostname}: Switching to new configuration, ensuring it is added to the top of the boot order"
 		echo
-		if rebuild switch; then
-			echo
-			read -r -p "Done. Press enter to exit..."
-			exit 0
-		fi
+		rebuild switch || true
 
 		# refresh possibly changed hashes
 		updateActiveHash

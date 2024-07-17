@@ -20,7 +20,7 @@ in
 
     # Safeguard: only allow reboots if the configuration actually changed
     if [ "z$(readlink -f /nix/var/nix/profiles/system)" = "z$(readlink -f /run/booted-system)" ]; then
-       echo Not rebooting, booted configuration matches latest
+       echo Not rebooting: booted configuration matches latest
       exit 1
     fi
 
