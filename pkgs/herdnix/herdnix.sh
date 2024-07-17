@@ -152,7 +152,9 @@ else
 	targetCmdWrapper=(ssh "${sshopts[@]}" "$target")
 
 	[[ $useRemoteSudo == "true" ]] && helperWrapper=(sudo) || helperWrapper=()
-	reboot_cmd=("${targetCmdWrapper[@]}" "${helperWrapper[@]}" "/run/current-system/sw/bin/__herdnix-reboot-helper" "--yes")
+
+	# shellcheck disable=SC2016
+	reboot_cmd=("${targetCmdWrapper[@]}" "${helperWrapper[@]}" '/etc/profiles/per-user/${USER}/bin/__herdnix-reboot-helper' "--yes")
 
 	targetHostArg=(--target-host "$target")
 fi
