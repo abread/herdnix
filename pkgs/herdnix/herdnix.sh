@@ -135,30 +135,32 @@ trap pause_on_crash ERR
 
 hostname="$2"
 target="$3"
-[[ $4 == "true" ]] && useRemoteSudo=(--use-remote-sudo) || useRemoteSudo=()
+useRemoteSudo="$4"
 flakedir="$(echo -n -E "$5" | sed 's # \\# g')"
 buildResultPath="$6"
+
+[[ $useRemoteSudo == "true" ]] && useRemoteSudoArg=(--use-remote-sudo) || useRemoteSudoArg=()
 
 reboot_cmd=(echo "$(red)I don't know how to reboot this host. This is a bug.$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
 	targetCmdWrapper=(sh -c)
 	reboot_cmd=(echo "$(red)I refuse to reboot the current host.$(reset)")
-	targetHost=()
+	targetHostArg=()
 else
 	sshopts=(-o ControlPath="$(pwd)/${hostname}.ssh" -o ControlMaster=auto -o ControlPersist=120)
 	export NIX_SSHOPTS="${sshopts[*]}" # share SSH connection with nixos-rebuild invocations
 	targetCmdWrapper=(ssh "${sshopts[@]}" "$target")
 
-	[[ $3 == "true" ]] && remoteSudo=(sudo) || remoteSudo=()
-	reboot_cmd=("${targetCmdWrapper[@]}" "${remoteSudo[@]}" "/run/current-system/sw/bin/__herdnix-reboot-helper" "--yes")
+	[[ $useRemoteSudo == "true" ]] && helperWrapper=(sudo) || helperWrapper=()
+	reboot_cmd=("${targetCmdWrapper[@]}" "${helperWrapper[@]}" "/run/current-system/sw/bin/__herdnix-reboot-helper" "--yes")
 
-	targetHost=(--target-host "$target")
+	targetHostArg=(--target-host "$target")
 fi
 unset target
 
 rebuild() {
 	op="$1"
-	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHost[@]}" "${useRemoteSudo[@]}"
+	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHostArg[@]}" "${useRemoteSudoArg[@]}"
 }
 
 updateActiveHash() {
