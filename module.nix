@@ -108,15 +108,17 @@ in {
     applySudoRule = cfg.useRemoteSudo && cfg.deploymentUser != "root";
   in
     lib.mkIf cfg.enable {
-      users.users."${cfg.deploymentUser}" = lib.mkIf cfg.createDeploymentUser {
-        isNormalUser = true;
-        shell = pkgs.bashInteractive;
-        home = "/var/empty";
-        createHome = false;
-        group = "nogroup";
-      };
-      users.users."${cfg.deploymentUser}".packages = [
-        cfg.rebootHelperPackage
+      users.users."${cfg.deploymentUser}" = lib.mkMerge [
+        {
+          packages = [cfg.rebootHelperPackage];
+        }
+        (lib.mkIf cfg.createDeploymentUser {
+          isNormalUser = true;
+          shell = pkgs.bashInteractive;
+          home = "/var/empty";
+          createHome = false;
+          group = "nogroup";
+        })
       ];
 
       security = {
