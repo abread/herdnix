@@ -59,7 +59,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 		if [[ -d $outPath ]]; then
 			# Filter out already-built configurations.
 			echo "$(yellow)Skipping ${hostname}: already built.$(reset)"
-			unset 'outPath["$hostname"]'
+			unset 'build_configs["$hostname"]'
 		else
 			# Prepare nix build args for kept configurations.
 			build_configs[$hostname]="$(echo -n -E "$flakedir" | sed 's \\ \\\\ g' | sed 's " \\" g' | sed 's # \\# g')#nixosConfigurations.${hostname}.config.system.build.toplevel"
@@ -77,12 +77,12 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	fi
 
 	# Open tmux with individual rebuild options for each host
-	unset tmux_sock_path
+	[[ -n $tmux_sock_path ]] && unset tmux_sock_path
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
 		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
 		useRemoteSudo="$(echo "$host_data" | jq -r '.value.useRemoteSudo')"
-		buildResultPath="$(echo "$host_data" | jq -r '.value.outPath')"
+		buildResultPath="$(nix derivation show "${flakedir}#nixosConfigurations.${hostname}.config.system.build.toplevel" | jq -r 'to_entries | .[].value.outputs.out.path')"
 
 		cmd=("$ownscript" "--single-host-do-not-call" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
 		if [[ -n $tmux_sock_path ]]; then
