@@ -80,7 +80,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	fi
 
 	# Open tmux with individual rebuild options for each host
-	[ -z ${tmux_sock_path+x} ] && unset tmux_sock_path
+	[ -z ${tmux_sock_path+x} ] && tmux_sock_path=""
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
 		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
@@ -88,7 +88,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 		buildResultPath="$(nix derivation show "${flakedir}#nixosConfigurations.${hostname}.config.system.build.toplevel" | jq -r 'to_entries | .[].value.outputs.out.path')"
 
 		cmd=("$ownscript" "--single-host-do-not-call" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
-		if [ -z ${tmux_sock_path+x} ]; then
+		if [[ -n ${tmux_sock_path} ]]; then
 			tmux -S"$tmux_sock_path" new-window "${cmd[@]}"
 		else
 			tmux_sock_path="${tmpdir}/tmux"
