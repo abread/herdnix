@@ -281,7 +281,7 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 
 				# retcode 255 likely means connection closed, which is fine.
 				"${reboot_cmd[@]}" && _reboot_ret=0 || _reboot_ret=$?
-				if [[ $_reboot_ret == 0 || $_reboot_ret == 255 ]]; then
+				if [[ $_reboot_ret -eq 0 || $_reboot_ret -eq 255 ]]; then
 					echo
 					read -r -p "Press enter to exit."
 				else
