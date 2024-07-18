@@ -51,7 +51,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	}
 
 	# If tags were provided, only include hosts which have any of the tags
-	if [[ $* -gt 0 ]]; then
+	if [[ $# -gt 0 ]]; then
 		tag_array="[\"${*// /\",\"}\"]"
 		jq -c ". | map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))" "$host_metadata" >"${host_metadata}.new"
 		mv "${host_metadata}.new" "$host_metadata"
