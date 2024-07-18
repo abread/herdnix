@@ -13,8 +13,8 @@ in {
       # we use mkOption instead of mkEnableOption to use true as the default
       type = lib.types.bool;
       description = "Whether to enable deploys to this host";
-      default = true;
-      example = false;
+      default = false;
+      example = true;
     };
 
     deploymentUser = lib.mkOption {
