@@ -1,4 +1,4 @@
-pkgs: let
+{pkgs}: let
   inhibitorPath = "/dev/shm/herdnix-dont-reboot";
 in
   pkgs.writeShellScriptBin "__herdnix-reboot-helper" ''

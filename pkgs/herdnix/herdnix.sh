@@ -41,18 +41,21 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	# shellcheck disable=SC2064
 	trap "rm -rf '${tmpdir}'" EXIT
 
-	# Build a jq filter that selects hosts matching the provided tags
-	tag_filter=""
-	if [[ $# -gt 0 ]]; then
-		tag_array="[\"${*// /\",\"}\"]"
-		tag_filter="| map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))"
-	fi
-
-	# Grab list of hosts, selecting only those with herdnix enabled.
+	# Grab list of herdnix-enabled hosts (with the help of <flake>#packages.${system}.herdnixHosts)
+	# Using a derivation to store this is faster than "nix eval" and is cached in the store
 	host_metadata="${tmpdir}/metadata.json"
-	nix eval --json "${flakedir}#nixosConfigurations" --apply 'f: builtins.mapAttrs (h: v: v.config.modules.herdnix // { rebootHelperPackage = null; }) f' |
-		jq -c ". | map_values(select(.enable)) ${tag_filter}" \
-			>"$host_metadata"
+	nix build -o "$host_metadata" "${flakedir}#herdnixHosts" || {
+		echo "$(red)Failed to obtain host metadata.$(reset)"
+		echo Did you import the flake properly?
+		exit 1
+	}
+
+	# If tags were provided, only include hosts which have any of the tags
+	if [[ $* -gt 0 ]]; then
+		tag_array="[\"${*// /\",\"}\"]"
+		jq -c ". | map_values(select(((.tags | unique) as \$A | (${tag_array} | unique) as \$B | \$A - (\$A - \$B) | length) > 0))" "$host_metadata" >"${host_metadata}.new"
+		mv "${host_metadata}.new" "$host_metadata"
+	fi
 
 	# Ask the user which ones should be updated
 	readarray -t checklist_entries < <(jq -r 'to_entries | map(.key + "\n" + .value.targetHost + "\n" + if .value.defaultSelect then "on" else "off" end) | .[]' "$host_metadata")

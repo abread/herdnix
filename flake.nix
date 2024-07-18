@@ -43,13 +43,11 @@
       pkgs,
       ...
     }: {
-      packages = let
-        mkRebootHelperPkg = import ./pkgs/reboot-helper.nix;
-        mkNixiesPkg = import ./pkgs/herdnix;
-      in {
-        herdnixRebootHelper = mkRebootHelperPkg pkgs;
-        herdnix = mkNixiesPkg pkgs;
+      packages = {
         default = self'.packages.herdnix;
+        herdnix = pkgs.callPackage ./pkgs/herdnix {};
+        herdnixHosts = pkgs.callPackage ./pkgs/herdnixHosts.nix {};
+        herdnixRebootHelper = pkgs.callPackage ./pkgs/reboot-helper.nix {};
       };
 
       apps = {
