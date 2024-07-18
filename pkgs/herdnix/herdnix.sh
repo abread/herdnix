@@ -118,13 +118,6 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	exit 0
 fi
 
-if [[ $# != 6 ]]; then
-	echo "$(red)Invalid arguments in internal invocation. This is a bug.$(reset)"
-	echo
-	read -r -p "Press enter to exit."
-	exit 1
-fi
-
 pause_on_crash() {
 	echo
 	echo "$(red)Looks like we crashed on line $(caller)$(reset)"
@@ -132,6 +125,14 @@ pause_on_crash() {
 	exit 1
 }
 trap pause_on_crash ERR
+abort() {
+	echo "$@"
+	return 1
+}
+
+if [[ $# != 6 ]]; then
+	abort "$(red)Invalid arguments in internal invocation. This is a bug.$(reset)"
+fi
 
 hostname="$2"
 target="$3"
@@ -141,7 +142,7 @@ buildResultPath="$6"
 
 [[ $useRemoteSudo == "true" ]] && useRemoteSudoArg=(--use-remote-sudo) || useRemoteSudoArg=()
 
-reboot_cmd=(echo "$(red)I don't know how to reboot this host. This is a bug.$(reset)")
+reboot_cmd=(abort "$(red)I don't know how to reboot this host. This is a bug.$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
 	targetCmdWrapper=(sh -c)
 	reboot_cmd=(echo "$(red)I refuse to reboot the current host.$(reset)")
@@ -165,22 +166,66 @@ rebuild() {
 	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHostArg[@]}" "${useRemoteSudoArg[@]}"
 }
 
-updateActiveHash() {
-	# shellcheck disable=SC2016
-	activeHash="$("${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /run/current-system)"')"
+updateRemoteHashes() {
+	declare -A expectedUnchanged=(
+		["active"]="$activeHash"
+		["booted"]="$bootedHash"
+		["nextBoot"]="$nextBootHash"
+	)
+	local retCode=0
+	local oldValue
+	local newValue
+
+	for h in "$@"; do
+		oldValue="${expectedUnchanged["$h"]}"
+		newValue="$("get_${h}Hash")"
+
+		unset 'expectedUnchanged["$h"]'
+		declare -g "${h}Hash"="$newValue"
+
+		# Hashes should only move from the old config to the new config
+		if [[ $newValue != "$currentHash" && $newValue != "$oldValue" ]]; then
+			echo "$(red)Remote $(yellow)$h$(red) configuration changed to unexpected version$(reset) ($oldValue -> expected $(green)$currentHash$(reset), got $(red)$newValue$(reset))"
+			retCode=1
+		fi
+	done
+
+	for h in "${!expectedUnchanged[@]}"; do
+		oldValue="${expectedUnchanged[$h]}"
+		newValue="$("get_${h}Hash")"
+
+		if [[ $oldValue != "$newValue" ]]; then
+			echo "$(red)Remote $(yellow)$h$(red) configuration changed unexpectedly$(reset) (expected $(green)$oldValue$(reset), got $(red)$newValue$(reset))"
+			retCode=1
+		fi
+	done
+
+	if [[ $retCode -ne 0 ]]; then
+		echo "$(red)Unexpected changes in remote configuration.$(reset)"
+		echo This likely means someone is attempting to deploy a different configuration in parallel.
+		echo "$(yellow)Proceed manually, with caution.$(reset)"
+		abort "$(red)This is $(yellow)NOT$(red) a bug.$(reset)"
+		echo
+		return $retCode
+	fi
 }
-updateNextBootHash() {
+
+get_activeHash() {
 	# shellcheck disable=SC2016
-	nextBootHash="$("${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /nix/var/nix/profiles/system)"')"
+	"${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /run/current-system)"'
 }
-updateBootedHash() {
+get_nextBootHash() {
 	# shellcheck disable=SC2016
-	bootedHash="$("${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /run/booted-system)"')"
+	"${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /nix/var/nix/profiles/system)"'
+}
+get_bootedHash() {
+	# shellcheck disable=SC2016
+	"${targetCmdWrapper[@]}" 'nix hash path "$(readlink -f /run/booted-system)"'
 }
 currentHash="$(nix hash path "$(readlink -f "$buildResultPath")")"
-updateActiveHash
-updateNextBootHash
-updateBootedHash
+activeHash="$(get_activeHash)"
+nextBootHash="$(get_nextBootHash)"
+bootedHash="$(get_bootedHash)"
 
 menuOptions=()
 buildMenuOptions() {
@@ -250,6 +295,7 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 
 	action="$(dialog --stdout --no-cancel --colors --cr-wrap --menu "${title}" 0 0 0 "${menuOptions[@]}" "exit" "Do nothing, just exit")"
 	clear
+	updateRemoteHashes # confirm nothing changed before continuing with action
 
 	case "$action" in
 	inspect)
@@ -262,8 +308,8 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 		echo
 		rebuild boot || true
 
-		# refresh possibly changed hashes
-		updateNextBootHash
+		# refresh changed hashes
+		updateRemoteHashes nextBoot
 		;;
 	reboot)
 		if [[ "$(hostname)" == "$hostname" ]]; then
@@ -282,20 +328,27 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 				# retcode 255 likely means connection closed, which is fine.
 				"${reboot_cmd[@]}" && _reboot_ret=0 || _reboot_ret=$?
 				if [[ $_reboot_ret -eq 0 || $_reboot_ret -eq 255 ]]; then
-					echo
-					read -r -p "Press enter to exit."
+					# wait a bit and try to fetch the new booted config
+					sleep 10
+					updateRemoteHashes booted
+
+					if [[ $bootedHash == "$currentHash" ]]; then
+						echo "$(green)Host rebooted into the new configuration!$(reset)"
+						break # we're done
+					else
+						echo "$(yellow)Host rebooted into the same configuration!$(reset)"
+						echo Perhaps you should check it rebooted at all
+					fi
+
 				else
 					echo
 					echo "$(yellow)Looks like we failed to reboot. If it's the first run this is normal: we need to install the reboot helper first.$(reset)"
 					echo "You may want to activate the new configuration."
-					echo
-					read -r -p "Press enter to continue..."
 				fi
+			else
+				# Cancelled, so nothing changed, just go back to start
+				continue
 			fi
-
-			# Nothing changed, so there is no need for rebuilding menu options
-			# and we don't want to prompt the user to press enter to continue
-			continue
 		fi
 		;;
 	switch)
@@ -303,17 +356,16 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 		echo
 		rebuild switch || true
 
-		# refresh possibly changed hashes
-		updateActiveHash
-		updateNextBootHash
+		# refresh changed hashes
+		updateRemoteHashes active nextBoot
 		;;
 	test)
 		echo "${hostname}: Switching to new configuration without adding it to boot order"
 		echo
 		rebuild test || true
 
-		# refresh possibly changed hashes
-		updateActiveHash
+		# refresh changed hashes
+		updateRemoteHashes active
 		;;
 	exit)
 		if dialog --yesno "Are you sure you want to exit?" 0 0; then
@@ -331,10 +383,12 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 	echo
 	buildMenuOptions # refresh options
 	echo
-	if [[ ${#menuOptions[@]} == 0 ]]; then
-		read -r -p "All done. Press enter to exit..."
-		exit 0
-	else
+	if [[ ${#menuOptions[@]} != 0 ]]; then
 		read -r -p "Press enter to continue..."
 	fi
 done
+
+echo
+echo "$(green)Host $(yellow)${hostname}$(green) is up to date.$(reset)"
+read -r -p "Press enter to exit..."
+exit 0
