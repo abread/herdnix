@@ -53,6 +53,13 @@ in {
       example = "user@machine.com";
     };
 
+    rebootTimeout = lib.mkOption {
+      type = lib.types.int;
+      description = "Maximum wait time for host to reboot in seconds";
+      default = 60;
+      example = 300;
+    };
+
     defaultSelect = lib.mkOption {
       type = lib.types.bool;
       description = "Whether to select this host for deployment by default";

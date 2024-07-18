@@ -101,11 +101,10 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	tmux_sock_path=""
 	for host_data in $(jq -c 'to_entries | sort_by(.key) | .[]' "$host_metadata"); do
 		hostname="$(echo "$host_data" | jq -r '.key')"
-		targetHost="$(echo "$host_data" | jq -r '.value.targetHost')"
-		useRemoteSudo="$(echo "$host_data" | jq -r '.value.useRemoteSudo')"
+		metadata="$(echo "$host_data" | jq -r '.value')"
 		buildResultPath="$(nix derivation show "${flakedir}#nixosConfigurations.${hostname}.config.system.build.toplevel" | jq -r 'to_entries | .[].value.outputs.out.path')"
 
-		cmd=("$ownscript" "--single-host-do-not-call" "$hostname" "$targetHost" "$useRemoteSudo" "$flakedir" "$buildResultPath")
+		cmd=("$ownscript" "--single-host-do-not-call" "$flakedir" "$hostname" "$metadata" "$buildResultPath")
 		if [[ -n ${tmux_sock_path} ]]; then
 			tmux -S"$tmux_sock_path" new-window "${cmd[@]}"
 		else
@@ -133,15 +132,18 @@ abort() {
 	return 1
 }
 
-if [[ $# != 6 ]]; then
+if [[ $# != 5 ]]; then
 	abort "$(red)Invalid arguments in internal invocation. This is a bug.$(reset)"
 fi
 
-hostname="$2"
-target="$3"
-useRemoteSudo="$4"
-flakedir="$(echo -n -E "$5" | sed 's # \\# g')"
-buildResultPath="$6"
+flakedir="$(echo -n -E "$2" | sed 's # \\# g')"
+hostname="$3"
+metadata="$4"
+buildResultPath="$5"
+
+target="$(echo "$metadata" | jq -r '.targetHost')"
+useRemoteSudo="$(echo "$metadata" | jq -r '.useRemoteSudo')"
+rebootTimeout="$(echo "$metadata" | jq -r '.rebootTimeout')"
 
 [[ $useRemoteSudo == "true" ]] && useRemoteSudoArg=(--use-remote-sudo) || useRemoteSudoArg=()
 
@@ -332,15 +334,36 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 				"${reboot_cmd[@]}" && _reboot_ret=0 || _reboot_ret=$?
 				if [[ $_reboot_ret -eq 0 || $_reboot_ret -eq 255 ]]; then
 					# wait a bit and try to fetch the new booted config
-					sleep 10
-					updateRemoteHashes booted
+					(
+						while ! "${targetCmdWrapper[@]}" true; do
+							sleep 1
+						done
+					) &
+					waiterPid=$!
+					(
+						sleep "$rebootTimeout"
+						kill $waiterPid
+						sleep 1
+						kill -SIGKILL $waiterPid
+					) &
+					killerPid=$!
 
-					if [[ $bootedHash == "$currentHash" ]]; then
-						echo "$(green)Host rebooted into the new configuration!$(reset)"
-						break # we're done
+					ret=0
+					wait $waiterPid || ret=$?
+					kill -SIGKILL $killerPid
+
+					if [[ $ret -eq 0 ]]; then
+						updateRemoteHashes booted
+
+						if [[ $bootedHash == "$currentHash" ]]; then
+							echo "$(yellow)${hostname}$(green) rebooted into the new configuration!$(reset)"
+							break # we're done
+						else
+							echo "$(red)${hostname}$(yellow) rebooted into the same configuration!$(reset)"
+							echo Perhaps you should check it rebooted at all
+						fi
 					else
-						echo "$(yellow)Host rebooted into the same configuration!$(reset)"
-						echo Perhaps you should check it rebooted at all
+						echo "$(red)Timed out waiting $(reset)"
 					fi
 
 				else
