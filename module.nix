@@ -9,13 +9,7 @@ in {
   imports = [];
 
   options.modules.herdnix = {
-    enable = lib.mkOption {
-      # we use mkOption instead of mkEnableOption to use true as the default
-      type = lib.types.bool;
-      description = "Whether to enable deploys to this host";
-      default = false;
-      example = true;
-    };
+    enable = lib.mkEnableOption "deploys to this host with herdnix";
 
     deploymentUser = lib.mkOption {
       type = lib.types.str;
@@ -27,7 +21,8 @@ in {
     createDeploymentUser = lib.mkOption {
       type = lib.types.bool;
       description = "Whether to create a least-privilege deployment user. This user is created as a password-less, home-less, nogroup user by default, and we expect you to enable authentication separately (e.g. through SSH keys).";
-      default = true;
+      default = cfg.deploymentUser == "herdnix";
+      defaultText = lib.literalExpression ''config.modules.herdnix.deploymentUser == "herdnix"'';
       example = false;
     };
 
