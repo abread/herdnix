@@ -41,10 +41,10 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	# shellcheck disable=SC2064
 	trap "rm -rf '${tmpdir}'" EXIT
 
-	# Grab list of herdnix-enabled hosts (with the help of <flake>#packages.${system}.herdnixHosts)
+	# Grab list of herdnix-enabled hosts (with the help of <flake>#packages.${system}.herdnix-hosts)
 	# Using a derivation to store this is faster than "nix eval" and is cached in the store
 	host_metadata="${tmpdir}/metadata.json"
-	nix build -o "$host_metadata" "${flakedir}#herdnixHosts" || {
+	nix build -o "$host_metadata" "${flakedir}#herdnix-hosts" || {
 		echo "$(red)Failed to obtain host metadata.$(reset)"
 		echo Did you import the flake properly?
 		exit 1

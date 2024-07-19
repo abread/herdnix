@@ -31,14 +31,18 @@
       inputs.pre-commit-hooks.flakeModule
     ];
 
-    flake.nixosModules.default = moduleWithSystem (perSystem @ {self'}: {...}: {
-      imports = [./module.nix];
-      modules.herdnix.rebootHelperPackage = perSystem.self'.packages.herdnixRebootHelper;
-    });
+    flake.nixosModules = let
+      mod = moduleWithSystem (perSystem @ {self'}: {...}: {
+        imports = [./module.nix];
+        modules.herdnix.rebootHelperPackage = perSystem.self'.packages.herdnixRebootHelper;
+      });
+    in {
+      default = mod;
+      herdnix = mod;
+    };
 
     systems = inputs.nixpkgs.lib.systems.flakeExposed;
     perSystem = {
-      system,
       self',
       pkgs,
       ...
@@ -46,8 +50,11 @@
       packages = {
         default = self'.packages.herdnix;
         herdnix = pkgs.callPackage ./pkgs/herdnix {};
-        herdnixHosts = pkgs.callPackage ./pkgs/herdnixHosts.nix {};
         herdnixRebootHelper = pkgs.callPackage ./pkgs/reboot-helper.nix {};
+
+        # Special derivation with deploy target host metadata.
+        # It must be overridden and exposed by flake users with the actual nixosConfigurations.
+        herdnix-hosts = pkgs.callPackage ./pkgs/herdnix-hosts.nix {};
       };
 
       apps = {
@@ -60,31 +67,25 @@
 
       formatter = pkgs.alejandra;
 
-      checks = {
-        pre-commit-check = inputs.pre-commit-hooks.lib."${system}".run {
-          src = ./.;
-          hooks = {
-            # Nix
-            alejandra.enable = true;
-            statix.enable = true;
-            deadnix.enable = true;
+      pre-commit.settings.hooks = {
+        # Nix
+        alejandra.enable = true;
+        statix.enable = true;
+        deadnix.enable = true;
 
-            # Shell
-            shellcheck.enable = true;
-            shfmt.enable = true;
+        # Shell
+        shellcheck.enable = true;
+        shfmt.enable = true;
 
-            # Git
-            check-merge-conflicts.enable = true;
-            forbid-new-submodules.enable = true;
+        # Git
+        check-merge-conflicts.enable = true;
+        forbid-new-submodules.enable = true;
 
-            typos.enable = true;
-          };
-        };
+        typos.enable = true;
       };
 
       devShells.default = pkgs.mkShell {
-        inherit (self'.checks.pre-commit-check) shellHook;
-        buildInputs = self'.checks.pre-commit-check.enabledPackages;
+        inherit (self'.pre-commit.devShell) shellHook buildInputs;
 
         packages = [
           self'.packages.herdnix
