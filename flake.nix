@@ -44,6 +44,7 @@
     systems = inputs.nixpkgs.lib.systems.flakeExposed;
     perSystem = {
       self',
+      config,
       pkgs,
       ...
     }: {
@@ -85,7 +86,7 @@
       };
 
       devShells.default = pkgs.mkShell {
-        inherit (self'.pre-commit.devShell) shellHook buildInputs;
+        inherit (config.pre-commit.devShell) shellHook buildInputs;
 
         packages = [
           self'.packages.herdnix
