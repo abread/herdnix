@@ -120,6 +120,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	exit 0
 fi
 
+# shellcheck disable=SC2317
 pause_on_crash() {
 	echo
 	echo "$(red)Looks like we crashed on line $(caller)$(reset)"
@@ -280,7 +281,7 @@ buildMenuOptions
 # show result of dry activation (if there is a difference)
 if [[ $currentHash != "$activeHash" ]]; then
 	echo "This is the result of switching to the new configuration in $(yellow)${hostname}$(reset):"
-	rebuild dry-activate || pause_on_crash
+	rebuild dry-activate || true
 
 	echo
 	read -r -p "Press enter to continue..."
