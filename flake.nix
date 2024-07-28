@@ -44,7 +44,7 @@
 
     # Special derivation(s) with deploy target host metadata.
     # It must be exposed by flake users in packages/legacyPackages.
-    herdnix-hosts = nixosConfigurations:
+    genHerdnixHostsPackages = nixosConfigurations:
       forAllSystems (
         system:
           nixpkgs.legacyPackages.${system}.callPackage ./pkgs/herdnix-hosts.nix {inherit nixosConfigurations;}
