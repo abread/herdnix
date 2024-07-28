@@ -1,4 +1,4 @@
-{
+{myPkgs, ...}: {
   lib,
   pkgs,
   config,
@@ -71,8 +71,8 @@ in {
       example = false;
     };
 
-    rebootHelperPackage = lib.mkPackageOption pkgs "reboot helper" {
-      default = "herdnixRebootHelper";
+    rebootHelperPackage = lib.mkPackageOption myPkgs.${pkgs.system} "reboot helper" {
+      default = "herdnix-reboot-helper";
       extraDescription = "The reboot helper must expose itself in the PATH as \"__herdnix-reboot-helper\". You likely do not want to change this.";
     };
   };
