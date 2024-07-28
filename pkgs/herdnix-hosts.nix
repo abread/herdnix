@@ -4,7 +4,7 @@
   # should be overridden
   nixosConfigurations ? {},
 }:
-pkgs.writeText "herdnixHosts" (
+pkgs.writeText "herdnix-hosts" (
   let
     hosts =
       builtins.mapAttrs

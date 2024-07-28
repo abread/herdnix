@@ -31,6 +31,7 @@
     in {
       herdnix = pkgs.callPackage ./pkgs/herdnix {};
       herdnix-reboot-helper = pkgs.callPackage ./pkgs/reboot-helper.nix {};
+      herdnix-hosts = pkgs.callPackage ./pkgs/herdnix-hosts.nix {};
     });
 
     apps = forAllSystems (system: {
@@ -46,8 +47,9 @@
     # It must be exposed by flake users in packages/legacyPackages.
     genHerdnixHostsPackages = nixosConfigurations:
       forAllSystems (
-        system:
-          nixpkgs.legacyPackages.${system}.callPackage ./pkgs/herdnix-hosts.nix {inherit nixosConfigurations;}
+        system: {
+          herdnix-hosts = self.packages.${system}.herdnix-hosts.override {inherit nixosConfigurations;};
+        }
       );
 
     checks = forAllSystems (system:
