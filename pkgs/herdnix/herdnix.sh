@@ -354,11 +354,16 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 					kill -SIGKILL $killerPid
 
 					if [[ $ret -eq 0 ]]; then
-						updateRemoteHashes booted
+						updateRemoteHashes booted active
 
 						if [[ $bootedHash == "$currentHash" ]]; then
-							echo "$(yellow)${hostname}$(green) rebooted into the new configuration!$(reset)"
-							break # we're done
+							if [[ $bootedHash != "$activeHash" ]]; then
+								echo "$(red)${hostname}$(reset) rebooted into the new configuration $(red)but another is active.$(reset)"
+								echo Perhaps you should check what happened manually.
+							else
+								echo "$(yellow)${hostname}$(green) rebooted into the new configuration!$(reset)"
+								break # we're done
+							fi
 						else
 							echo "$(red)${hostname}$(yellow) rebooted into the same configuration!$(reset)"
 							echo Perhaps you should check it rebooted at all
