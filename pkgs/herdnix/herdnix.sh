@@ -336,7 +336,8 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 				if [[ $_reboot_ret -eq 0 || $_reboot_ret -eq 255 ]]; then
 					# wait a bit and try to fetch the new booted config
 					(
-						while ! "${targetCmdWrapper[@]}" true; do
+						oldBootedHash="$bootedHash"
+						while (! "${targetCmdWrapper[@]}" true) && updateRemoteHashes booted active && [[ $bootedHash == "$oldBootedHash" ]]; do
 							sleep 1
 						done
 					) &
