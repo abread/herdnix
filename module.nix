@@ -71,6 +71,15 @@ in {
       example = false;
     };
 
+    createSudoRules = lib.mkOption {
+      type = lib.types.bool;
+      description = "Whether to use install sudo rules for password-less deploys.";
+      # enable when root does not have a configured SSH key
+      default = cfg.useRemoteSudo;
+      defaultText = lib.literalExpression ''cfg.useRemoteSudo'';
+      example = false;
+    };
+
     rebootHelperPackage = lib.mkPackageOption myPkgs.${pkgs.system} "reboot helper" {
       default = "herdnix-reboot-helper";
       extraDescription = "The reboot helper must expose itself in the PATH as \"__herdnix-reboot-helper\". You likely do not want to change this.";
@@ -110,7 +119,6 @@ in {
           "/etc/profiles/per-user/${cfg.deploymentUser}/bin/${rebootHelperName} --yes"
         ];
     };
-    applySudoRule = cfg.useRemoteSudo && cfg.deploymentUser != "root";
   in
     lib.mkIf cfg.enable {
       users.users."${cfg.deploymentUser}" = lib.mkMerge [
@@ -127,8 +135,8 @@ in {
       ];
 
       security = {
-        sudo.extraRules = lib.mkIf (applySudoRule && config.security.sudo.enable) [sudoRule];
-        sudo-rs.extraRules = lib.mkIf (applySudoRule && config.security.sudo-rs.enable) [sudoRule];
+        sudo.extraRules = lib.mkIf (cfg.createSudoRules && config.security.sudo.enable) [sudoRule];
+        sudo-rs.extraRules = lib.mkIf (cfg.createSudoRules && config.security.sudo-rs.enable) [sudoRule];
       };
     };
 }
