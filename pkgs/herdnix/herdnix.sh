@@ -337,7 +337,7 @@ while [ ${#menuOptions[@]} -gt 0 ]; do
 					# wait a bit and try to fetch the new booted config
 					(
 						oldBootedHash="$bootedHash"
-						while (! "${targetCmdWrapper[@]}" true) && updateRemoteHashes booted active && [[ $bootedHash == "$oldBootedHash" ]]; do
+						while (! "${targetCmdWrapper[@]}" true) || (updateRemoteHashes booted active && [[ $bootedHash == "$oldBootedHash" ]]); do
 							sleep 1
 						done
 					) &
