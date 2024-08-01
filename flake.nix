@@ -59,7 +59,10 @@
           hooks = {
             # Nix
             alejandra.enable = true;
-            statix.enable = true;
+            statix = {
+              enable = true;
+              settings.ignore = [".direnv" ".git"];
+            };
             deadnix.enable = true;
 
             # Shell
