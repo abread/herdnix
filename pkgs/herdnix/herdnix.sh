@@ -33,13 +33,14 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	# Switch to temporary directory
 	flakedir="$(pwd)"
 	ownscript="$(realpath "$0")"
-	tmpdir="$(mktemp -d -p "${TMPDIR:-/tmp}" herdnix.XXXXXXXXXX)"
+	tmpdir="$(pwd)/herdnix-build"
 	tmpdir="$(realpath "$tmpdir")"
 	cd "$tmpdir"
 
+	# cleanup disabled to allow users to keep results cached with ease
 	# cleanup on exit
 	# shellcheck disable=SC2064
-	trap "rm -rf '${tmpdir}'" EXIT
+	#trap "rm -rf '${tmpdir}'" EXIT
 
 	# Grab list of herdnix-enabled hosts (with the help of <flake>#packages.${system}.herdnix-hosts)
 	# Using a derivation to store this is faster than "nix eval" and is cached in the store
