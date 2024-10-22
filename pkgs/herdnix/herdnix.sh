@@ -34,7 +34,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	flakedir="$(pwd)"
 	ownscript="$(realpath "$0")"
 	tmpdir="$(pwd)/herdnix-build"
-	tmpdir="$(realpath "$tmpdir")"
+	mkdir -p "$tmpdir"
 	cd "$tmpdir"
 
 	# cleanup disabled to allow users to keep results cached with ease
