@@ -36,6 +36,9 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	tmpdir="$(pwd)/herdnix-build"
 	mkdir -p "$tmpdir"
 	cd "$tmpdir"
+	for f in metadata.json result*; do
+		unlink "$f" 2>/dev/null || true
+	done
 
 	# cleanup disabled to allow users to keep results cached with ease
 	# cleanup on exit
