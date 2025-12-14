@@ -124,7 +124,7 @@ if [[ $# -eq 0 ]] || [[ $1 != "--single-host-do-not-call" ]]; then
 	exit 0
 fi
 
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 pause_on_crash() {
 	echo
 	echo "$(red)Looks like we crashed on line $(caller)$(reset)"
