@@ -147,10 +147,10 @@ metadata="$4"
 buildResultPath="$5"
 
 target="$(echo "$metadata" | jq -r '.targetHost')"
-useRemoteSudo="$(echo "$metadata" | jq -r '.useRemoteSudo')"
+useSudo="$(echo "$metadata" | jq -r '.useSudo')"
 rebootTimeout="$(echo "$metadata" | jq -r '.rebootTimeout')"
 
-[[ $useRemoteSudo == "true" ]] && useRemoteSudoArg=(--use-remote-sudo) || useRemoteSudoArg=()
+[[ $useSudo == "true" ]] && useSudoArg=(--sudo) || useSudoArg=()
 
 reboot_cmd=(abort "$(red)I don't know how to reboot this host. This is a bug.$(reset)")
 if [[ "$(hostname)" == "$hostname" ]]; then
@@ -162,7 +162,7 @@ else
 	export NIX_SSHOPTS="${sshopts[*]}" # share SSH connection with nixos-rebuild invocations
 	targetCmdWrapper=(ssh "${sshopts[@]}" "$target")
 
-	[[ $useRemoteSudo == "true" ]] && helperWrapper=(sudo) || helperWrapper=()
+	[[ $useSudo == "true" ]] && helperWrapper=(sudo) || helperWrapper=()
 
 	# shellcheck disable=SC2016
 	reboot_cmd=("${targetCmdWrapper[@]}" "${helperWrapper[@]}" '/etc/profiles/per-user/${USER}/bin/__herdnix-reboot-helper' "--yes")
@@ -173,7 +173,7 @@ unset target
 
 rebuild() {
 	op="$1"
-	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHostArg[@]}" "${useRemoteSudoArg[@]}"
+	nixos-rebuild "$op" --flake "${flakedir}#${hostname}" "${targetHostArg[@]}" "${useSudoArg[@]}"
 }
 
 updateRemoteHashes() {

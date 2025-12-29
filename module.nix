@@ -13,7 +13,7 @@ in {
 
     deploymentUser = lib.mkOption {
       type = lib.types.str;
-      description = "Which user should be used to deploy the configuration. Keep null to disable. This user will be granted enough permissions to use sudo without password for deployment tasks (if useRemoteSudo is set to true, which is the default for non-root deployment users).";
+      description = "Which user should be used to deploy the configuration. Keep null to disable. This user will be granted enough permissions to use sudo without password for deployment tasks (if useSudo is set to true, which is the default for non-root deployment users).";
       default = "herdnix";
       example = "someusername";
     };
@@ -62,9 +62,9 @@ in {
       example = false;
     };
 
-    useRemoteSudo = lib.mkOption {
+    useSudo = lib.mkOption {
       type = lib.types.bool;
-      description = "Whether to use sudo to deploy this host with --use-remote-sudo. You likely do not want to change this.";
+      description = "Whether to use sudo to deploy this host with --sudo. You likely do not want to change this.";
       # enable when root does not have a configured SSH key
       default = cfg.deploymentUser != "root";
       defaultText = lib.literalExpression ''cfg.deploymentUser != "root"'';
@@ -75,8 +75,8 @@ in {
       type = lib.types.bool;
       description = "Whether to use install sudo rules for password-less deploys.";
       # enable when root does not have a configured SSH key
-      default = cfg.useRemoteSudo;
-      defaultText = lib.literalExpression ''cfg.useRemoteSudo'';
+      default = cfg.useSudo;
+      defaultText = lib.literalExpression ''cfg.useSudo'';
       example = false;
     };
 
